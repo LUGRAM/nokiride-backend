@@ -117,6 +117,10 @@ class MarketController extends Controller
             payable: $order,
         );
 
-        return response()->json(['data' => $order, 'payment' => $payment], 201);
+        return response()->json([
+            'data' => $order,
+            'payment' => $payment,
+            'payment_reference' => $payment->reference,
+        ], 201);
     }
 }

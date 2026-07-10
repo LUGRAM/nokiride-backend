@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Delivery;
 use App\Models\Driver;
 use App\Services\Payments\PaymentService;
+use App\Services\Pricing\PricingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +14,10 @@ use Illuminate\Support\Str;
 
 class DeliveryController extends Controller
 {
-    public function __construct(private readonly PaymentService $paymentService)
+    public function __construct(
+        private readonly PaymentService $paymentService,
+        private readonly PricingService $pricingService,
+    )
     {
     }
 
@@ -24,7 +28,7 @@ class DeliveryController extends Controller
             'parcel_size' => ['nullable', 'in:small,medium,large'],
         ]);
 
-        return response()->json(['data' => $this->pricing((float) $data['distance_km'], $data['parcel_size'] ?? 'medium')]);
+        return response()->json(['data' => $this->pricingService->delivery((float) $data['distance_km'], $data['parcel_size'] ?? 'medium')]);
     }
 
     public function store(Request $request): JsonResponse
@@ -35,14 +39,14 @@ class DeliveryController extends Controller
             'pickup_address' => ['required', 'string'],
             'dropoff_address' => ['required', 'string'],
             'recipient_name' => ['required', 'string'],
-            'recipient_phone' => ['required', 'string'],
+            'recipient_phone' => ['required', 'string', 'regex:/^\+241\d{8}$/'],
             'parcel_size' => ['required', 'in:small,medium,large'],
             'parcel_note' => ['nullable', 'string'],
             'distance_km' => ['required', 'numeric', 'min:0.1'],
             'payment_method' => ['nullable', 'in:'.implode(',', PaymentService::METHODS)],
         ]);
 
-        $estimate = $this->pricing((float) $data['distance_km'], $data['parcel_size']);
+        $estimate = $this->pricingService->delivery((float) $data['distance_km'], $data['parcel_size']);
 
         $delivery = Delivery::create($data + [
             'user_id' => $request->user()->id,
@@ -65,6 +69,7 @@ class DeliveryController extends Controller
         return response()->json([
             'data' => $delivery->load('driver'),
             'payment' => $payment,
+            'payment_reference' => $payment->reference,
         ], 201);
     }
 
@@ -73,11 +78,19 @@ class DeliveryController extends Controller
         $this->authorize('update', $delivery);
 
         $data = $request->validate(['status' => ['required', 'in:searching,assigned,in_progress,delivered,cancelled']]);
-        abort_unless(
-            $request->user()->role === 'admin' || ($delivery->status === 'searching' && $data['status'] === 'cancelled'),
-            422,
-            'Transition de statut non autorisée.'
-        );
+        if ($request->user()->role !== 'admin') {
+            $allowedTransitions = [
+                'searching' => ['assigned', 'cancelled'],
+                'assigned' => ['in_progress', 'delivered', 'cancelled'],
+                'in_progress' => ['delivered', 'cancelled'],
+            ];
+
+            abort_unless(
+                in_array($data['status'], $allowedTransitions[$delivery->status] ?? [], true),
+                422,
+                'Transition de statut non autorisée.'
+            );
+        }
         $delivery->update(['status' => $data['status'], 'delivered_at' => $data['status'] === 'delivered' ? now() : $delivery->delivered_at]);
         Log::info('delivery.status_updated', [
             'delivery_id' => $delivery->id,
@@ -88,15 +101,4 @@ class DeliveryController extends Controller
         return response()->json(['data' => $delivery->fresh('driver')]);
     }
 
-    private function pricing(float $distanceKm, string $parcelSize): array
-    {
-        $surcharge = ['small' => 0, 'medium' => 300, 'large' => 700][$parcelSize];
-        $raw = max(1000, 600 + $distanceKm * 200 + $surcharge);
-
-        return [
-            'distance_km' => round($distanceKm, 2),
-            'price_fcfa' => (int) round($raw / 50) * 50,
-            'estimated_minutes' => max(8, (int) round($distanceKm / 22 * 60)),
-        ];
-    }
 }

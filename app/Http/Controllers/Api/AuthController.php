@@ -95,7 +95,23 @@ class AuthController extends Controller
                 Rule::unique('users', 'phone')->ignore($user->id),
             ],
             'email' => ['nullable', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            'otp_verification_token' => ['nullable', 'string'],
         ]);
+
+        if ($data['phone'] !== $user->phone) {
+            if (! isset($data['otp_verification_token'])) {
+                return response()->json([
+                    'message' => 'Un code de vérification est requis pour changer de numéro.',
+                    'errors' => ['otp_verification_token' => ['Le jeton de validation est absent.']],
+                ], 422);
+            }
+
+            $this->otpService->consumeVerification(
+                $data['phone'],
+                'profile_update',
+                $data['otp_verification_token']
+            );
+        }
 
         $user->update([
             'name' => $data['name'],
@@ -104,6 +120,27 @@ class AuthController extends Controller
         ]);
 
         Log::info('auth.profile_updated', ['user_id' => $user->id, 'ip' => $request->ip()]);
+
+        return response()->json(['user' => $user->fresh()]);
+    }
+
+    public function updateActiveRole(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'active_role' => ['required', 'string', Rule::in(['client', 'driver'])],
+        ]);
+
+        $user = $request->user();
+        if ($data['active_role'] === 'driver' && $user->role !== 'driver') {
+            return response()->json(['message' => 'Compte chauffeur requis.'], 403);
+        }
+
+        $user->update(['active_role' => $data['active_role']]);
+        Log::info('auth.active_role_updated', [
+            'user_id' => $user->id,
+            'active_role' => $data['active_role'],
+            'ip' => $request->ip(),
+        ]);
 
         return response()->json(['user' => $user->fresh()]);
     }

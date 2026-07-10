@@ -21,7 +21,7 @@ class PaymentFlowTest extends TestCase
                 'method' => 'noki_pay',
             ])
             ->assertCreated()
-            ->assertJsonPath('data.status', 'paid')
+            ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.provider', 'mock')
             ->json('data.id');
 
@@ -29,6 +29,30 @@ class PaymentFlowTest extends TestCase
             ->getJson("/api/v1/payments/{$paymentId}")
             ->assertOk()
             ->assertJsonPath('data.amount_fcfa', 1500);
+
+        $this->withToken($user->createToken('test')->plainTextToken)
+            ->postJson("/api/v1/payments/{$paymentId}/confirm")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'paid');
+    }
+
+    public function test_mock_webhook_marks_a_pending_payment_as_paid(): void
+    {
+        $user = User::factory()->create();
+        $reference = $this->withToken($user->createToken('test')->plainTextToken)
+            ->postJson('/api/v1/payments/initiate', [
+                'amount_fcfa' => 1500,
+                'purpose' => 'trip',
+                'method' => 'noki_pay',
+            ])
+            ->assertCreated()
+            ->json('data.reference');
+
+        $this->postJson('/api/v1/payments/webhook/mock', [
+            'reference' => $reference,
+            'status' => 'paid',
+        ])->assertOk()
+            ->assertJsonPath('data.status', 'paid');
     }
 
     public function test_trip_creation_generates_a_paid_mock_payment(): void

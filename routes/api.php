@@ -23,6 +23,7 @@ Route::prefix('v1')->group(function () {
         Route::get('places', [PlaceController::class, 'index']);
         Route::get('market/merchants', [MarketController::class, 'merchants']);
         Route::get('market/merchants/{merchant}/products', [MarketController::class, 'products']);
+        Route::post('payments/webhook/mock', [PaymentController::class, 'webhookMock']);
 
         Route::post('trips/estimate', [TripController::class, 'estimate']);
         Route::post('deliveries/estimate', [DeliveryController::class, 'estimate']);
@@ -31,6 +32,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::patch('auth/profile', [AuthController::class, 'updateProfile']);
+        Route::patch('auth/active-role', [AuthController::class, 'updateActiveRole']);
         Route::get('auth/stats', [AuthController::class, 'stats']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
 
@@ -42,6 +44,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('wallet', [WalletController::class, 'show']);
         Route::post('wallet/recharge', [WalletController::class, 'recharge']);
+        Route::post('wallet/transfer', [WalletController::class, 'transfer']);
 
         Route::post('payments/initiate', [PaymentController::class, 'initiate']);
         Route::get('payments/{payment}', [PaymentController::class, 'show']);

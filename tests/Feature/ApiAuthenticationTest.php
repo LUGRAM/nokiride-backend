@@ -94,18 +94,18 @@ class ApiAuthenticationTest extends TestCase
         $this->withToken($user->createToken('test')->plainTextToken)
             ->patchJson('/api/v1/auth/profile', [
                 'name' => 'Enzo Mezui',
-                'phone' => '+24177000000',
+                'phone' => '+24177111111',
                 'email' => 'enzo@example.com',
             ])
             ->assertOk()
             ->assertJsonPath('user.name', 'Enzo Mezui')
-            ->assertJsonPath('user.phone', '+24177000000')
+            ->assertJsonPath('user.phone', '+24177111111')
             ->assertJsonPath('user.email', 'enzo@example.com');
 
         $this->assertDatabaseHas('users', [
             'id' => $user->id,
             'name' => 'Enzo Mezui',
-            'phone' => '+24177000000',
+            'phone' => '+24177111111',
         ]);
     }
 
@@ -262,5 +262,49 @@ class ApiAuthenticationTest extends TestCase
         $this->assertSame(6200, $user->fresh()->wallet_balance);
         $this->assertDatabaseCount('wallet_transactions', 1);
         $this->assertDatabaseCount('payments', 1);
+    }
+
+    public function test_wallet_transfer_moves_balance_between_users(): void
+    {
+        $sender = User::factory()->create([
+            'wallet_balance' => 5000,
+            'phone' => '+24177111111',
+        ]);
+        $recipient = User::factory()->create([
+            'wallet_balance' => 1000,
+            'phone' => '+24177222222',
+        ]);
+
+        $this->withToken($sender->createToken('test')->plainTextToken)
+            ->postJson('/api/v1/wallet/transfer', [
+                'recipient_phone' => $recipient->phone,
+                'amount_fcfa' => 1500,
+            ])
+            ->assertOk()
+            ->assertJsonPath('balance_fcfa', 3500)
+            ->assertJsonPath('payment.status', 'paid')
+            ->assertJsonPath('transaction.type', 'debit');
+
+        $this->assertSame(3500, $sender->fresh()->wallet_balance);
+        $this->assertSame(2500, $recipient->fresh()->wallet_balance);
+        $this->assertDatabaseCount('wallet_transactions', 2);
+    }
+
+    public function test_wallet_transfer_requires_sufficient_balance(): void
+    {
+        $sender = User::factory()->create([
+            'wallet_balance' => 500,
+            'phone' => '+24177333333',
+        ]);
+        $recipient = User::factory()->create(['phone' => '+24177444444']);
+
+        $this->withToken($sender->createToken('test')->plainTextToken)
+            ->postJson('/api/v1/wallet/transfer', [
+                'recipient_phone' => $recipient->phone,
+                'amount_fcfa' => 1500,
+            ])
+            ->assertUnprocessable();
+
+        $this->assertSame(500, $sender->fresh()->wallet_balance);
     }
 }

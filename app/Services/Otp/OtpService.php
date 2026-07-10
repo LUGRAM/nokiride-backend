@@ -91,6 +91,9 @@ class OtpService
         if (! $otp || ! hash_equals((string) $otp->verification_token_hash, hash('sha256', $token))) {
             throw ValidationException::withMessages(['otp_verification_token' => ['Validation OTP requise.']]);
         }
+        if ($otp->expires_at->isPast()) {
+            throw ValidationException::withMessages(['otp_verification_token' => ['Ce jeton de validation a expiré.']]);
+        }
         $otp->update(['consumed_at' => now()]);
     }
 }

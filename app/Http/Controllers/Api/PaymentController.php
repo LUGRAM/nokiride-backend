@@ -22,21 +22,7 @@ class PaymentController extends Controller
             'purpose' => ['required', 'in:wallet_recharge,trip,delivery,market_order'],
         ]);
 
-        if ($data['purpose'] === 'wallet_recharge') {
-            $result = $this->paymentService->rechargeWallet(
-                $request->user(),
-                $data['amount_fcfa'],
-                $data['method'] ?? 'airtel_money',
-            );
-
-            return response()->json([
-                'data' => $result['payment'],
-                'balance_fcfa' => $result['balance_fcfa'],
-                'transaction' => $result['transaction'],
-            ], 201);
-        }
-
-        $payment = $this->paymentService->mockPayment(
+        $payment = $this->paymentService->pendingPayment(
             user: $request->user(),
             amountFcfa: $data['amount_fcfa'],
             method: $data['method'] ?? 'noki_pay',
@@ -57,12 +43,30 @@ class PaymentController extends Controller
     {
         abort_unless($payment->user_id === $request->user()->id || $request->user()->role === 'admin', 403);
 
-        if ($payment->status !== 'paid') {
-            $payment->update(['status' => 'paid', 'paid_at' => now()]);
+        return response()->json([
+            'data' => $this->paymentService->markAsPaid($payment),
+        ]);
+    }
+
+    public function webhookMock(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'reference' => ['required_without:provider_reference', 'string'],
+            'provider_reference' => ['required_without:reference', 'string'],
+            'status' => ['nullable', 'in:paid,failed'],
+        ]);
+
+        $payment = Payment::query()
+            ->when($data['reference'] ?? null, fn ($query, $reference) => $query->where('reference', $reference))
+            ->when($data['provider_reference'] ?? null, fn ($query, $providerReference) => $query->where('provider_reference', $providerReference))
+            ->firstOrFail();
+
+        if (($data['status'] ?? 'paid') === 'failed') {
+            $payment->update(['status' => 'failed']);
+
+            return response()->json(['data' => $payment->fresh()]);
         }
 
-        return response()->json([
-            'data' => $payment->fresh(),
-        ]);
+        return response()->json(['data' => $this->paymentService->markAsPaid($payment)]);
     }
 }
