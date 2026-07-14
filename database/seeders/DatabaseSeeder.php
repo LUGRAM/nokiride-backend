@@ -28,7 +28,7 @@ class DatabaseSeeder extends Seeder
 
         // 2. CLIENTS (Compte User uniquement)
         User::updateOrCreate(
-            ['phone' => '077000000'],
+            ['phone' => '+24177000000'],
             [
                 'name' => 'Enzo Mezui',
                 'email' => 'enzo@nokiride.local',
@@ -51,7 +51,7 @@ class DatabaseSeeder extends Seeder
 
         // 3. CHAUFFEURS (Compte User + Profil Driver)
         $longaUser = User::updateOrCreate(
-            ['phone' => '077111111'],
+            ['phone' => '+24177111111'],
             [
                 'name' => 'Longa Lloyd',
                 'email' => 'longa@nokiride.local',

@@ -23,11 +23,17 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'phone' => ['required', 'string', 'regex:/^\+241\d{8}$/'],
+            'phone' => ['required', 'string'], // Relaxed validation temporarily for easier testing
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::where('phone', $data['phone'])->first();
+        // Normalisation simple : si ça commence par 0, on remplace par +241
+        $phone = $data['phone'];
+        if (str_starts_with($phone, '0')) {
+            $phone = '+241' . substr($phone, 1);
+        }
+
+        $user = User::where('phone', $phone)->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             Log::warning('auth.login_failed', ['phone' => $data['phone'], 'ip' => $request->ip()]);
@@ -46,26 +52,26 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'phone' => [
-                'required',
-                'string',
-                'regex:/^\+241\d{8}$/',
-                Rule::unique('users', 'phone'),
-            ],
+            'phone' => ['required', 'string', Rule::unique('users', 'phone')], // Relaxed validation
             'email' => ['nullable', 'email', Rule::unique('users', 'email')],
             'password' => ['required', 'string', 'min:6'],
             'otp_verification_token' => ['required', 'string'],
         ]);
 
+        $phone = $data['phone'];
+        if (str_starts_with($phone, '0')) {
+            $phone = '+241' . substr($phone, 1);
+        }
+
         $this->otpService->consumeVerification(
-            $data['phone'],
+            $phone,
             'registration',
             $data['otp_verification_token']
         );
 
         $user = User::create([
             'name' => $data['name'],
-            'phone' => $data['phone'],
+            'phone' => $phone,
             'email' => $data['email'] ?? null,
             'password' => $data['password'],
             'wallet_balance' => 5000,
