@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // 1. ADMIN
         User::updateOrCreate(
             ['phone' => '+24100000000'],
             [
@@ -25,7 +26,19 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        $customer = User::updateOrCreate(
+        // 2. CLIENTS (Compte User uniquement)
+        User::updateOrCreate(
+            ['phone' => '077000000'],
+            [
+                'name' => 'Enzo Mezui',
+                'email' => 'enzo@nokiride.local',
+                'role' => 'customer',
+                'password' => Hash::make('1234567890'),
+                'wallet_balance' => 15000,
+            ],
+        );
+
+        $demoCustomer = User::updateOrCreate(
             ['phone' => '+24177123456'],
             [
                 'name' => 'Client Démo',
@@ -36,12 +49,61 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        foreach ($this->places() as $place) {
-            Place::updateOrCreate(['name' => $place['name']], $place);
+        // 3. CHAUFFEURS (Compte User + Profil Driver)
+        $longaUser = User::updateOrCreate(
+            ['phone' => '077111111'],
+            [
+                'name' => 'Longa Lloyd',
+                'email' => 'longa@nokiride.local',
+                'role' => 'driver',
+                'password' => Hash::make('1234567890'),
+                'is_online' => true,
+                'is_busy' => false,
+            ],
+        );
+
+        Driver::updateOrCreate(
+            ['user_id' => $longaUser->id],
+            [
+                'name' => $longaUser->name,
+                'phone' => $longaUser->phone,
+                'vehicle_type' => 'Berline',
+                'vehicle_plate' => 'GA-123-AB',
+                'rating' => 5.0,
+                'status' => 'available'
+            ]
+        );
+
+        // Autres chauffeurs démo
+        $demoDrivers = [
+            ['name' => 'Jean Ondo', 'phone' => '+24166000111', 'vehicle_type' => 'Moto', 'vehicle_plate' => 'GA-2041-AA'],
+            ['name' => 'Michel Essono', 'phone' => '+24166000222', 'vehicle_type' => 'Moto', 'vehicle_plate' => 'GA-3398-BB'],
+        ];
+
+        foreach ($demoDrivers as $data) {
+            $u = User::updateOrCreate(
+                ['phone' => $data['phone']],
+                [
+                    'name' => $data['name'],
+                    'role' => 'driver',
+                    'password' => Hash::make('password'),
+                    'is_online' => true,
+                ]
+            );
+
+            Driver::updateOrCreate(
+                ['user_id' => $u->id],
+                array_merge($data, [
+                    'user_id' => $u->id,
+                    'rating' => 4.5,
+                    'status' => 'available'
+                ])
+            );
         }
 
-        foreach ($this->drivers() as $driver) {
-            Driver::updateOrCreate(['phone' => $driver['phone']], $driver);
+        // 4. PLACES & MERCHANTS
+        foreach ($this->places() as $place) {
+            Place::updateOrCreate(['name' => $place['name']], $place);
         }
 
         foreach ($this->merchants() as $merchantData) {
@@ -58,7 +120,7 @@ class DatabaseSeeder extends Seeder
         WalletTransaction::updateOrCreate(
             ['reference' => 'WLT-DEMO-001'],
             [
-                'user_id' => $customer->id,
+                'user_id' => $demoCustomer->id,
                 'label' => 'Recharge Mobile Money',
                 'type' => 'credit',
                 'method' => 'airtel_money',
@@ -79,14 +141,6 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Louis', 'address' => 'Quartier Louis, Libreville', 'latitude' => 0.3847, 'longitude' => 9.4378],
             ['name' => 'Owendo', 'address' => 'Owendo, Libreville', 'latitude' => 0.3021, 'longitude' => 9.5012],
             ['name' => 'Marché Mont-Bouët', 'address' => 'Marché Mont-Bouët, Libreville', 'latitude' => 0.3945, 'longitude' => 9.4534],
-        ];
-    }
-
-    private function drivers(): array
-    {
-        return [
-            ['name' => 'Jean Ondo', 'phone' => '+24166000111', 'vehicle_type' => 'Moto', 'vehicle_plate' => 'GA-2041-AA', 'rating' => 4.8, 'status' => 'available'],
-            ['name' => 'Michel Essono', 'phone' => '+24166000222', 'vehicle_type' => 'Moto', 'vehicle_plate' => 'GA-3398-BB', 'rating' => 4.6, 'status' => 'available'],
         ];
     }
 

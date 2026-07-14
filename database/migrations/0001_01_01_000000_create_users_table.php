@@ -17,6 +17,11 @@ return new class extends Migration
             $table->string('email')->nullable()->unique();
             $table->string('phone')->unique();
             $table->string('role')->default('customer');
+            $table->string('active_role')->default('customer');
+            $table->boolean('is_online')->default(false);
+            $table->boolean('is_busy')->default(false);
+            $table->boolean('data_saver_enabled')->default(false);
+            $table->string('fcm_token')->nullable();
             $table->unsignedInteger('wallet_balance')->default(0);
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
