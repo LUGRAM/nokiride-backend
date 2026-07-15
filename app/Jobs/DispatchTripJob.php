@@ -42,11 +42,16 @@ class DispatchTripJob implements ShouldQueue
                 $fcmService = app(FcmNotificationService::class);
 
                 foreach ($drivers as $driver) {
-                    // Enregistrer l'envoi du dispatch
-                    TripDispatch::updateOrCreate(
+                    // Un dispatch terminal (rejected/expired) ne doit jamais
+                    // redevenir "sent", même si le job change de rayon.
+                    $dispatch = TripDispatch::firstOrCreate(
                         ['trip_id' => $this->trip->id, 'driver_id' => $driver->id],
                         ['status' => 'sent']
                     );
+
+                    if (!$dispatch->wasRecentlyCreated || $dispatch->status !== 'sent') {
+                        continue;
+                    }
 
                     // 1. WebSocket (Temps réel)
                     broadcast(new TripRequested($this->trip, $driver->id, $this->timeoutPerStep));
@@ -96,6 +101,7 @@ class DispatchTripJob implements ShouldQueue
     protected function markSentAsExpired(array $driverIds)
     {
         // On ne marque comme expiré que si le trip est toujours en recherche
+        $this->trip->refresh();
         if ($this->trip->status === 'searching') {
             TripDispatch::where('trip_id', $this->trip->id)
                 ->whereIn('driver_id', $driverIds)

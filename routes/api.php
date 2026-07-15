@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DeliveryController;
 use App\Http\Controllers\Api\MarketController;
+use App\Http\Controllers\Api\NavigationController;
 use App\Http\Controllers\Api\OtpController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PlaceController;
@@ -37,6 +38,10 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
 
         Route::post('trips', [TripController::class, 'store']);
+        Route::post('trips/{trip}/accept', [TripController::class, 'accept']);
+        Route::post('trips/{trip}/reject', [TripController::class, 'reject']);
+        Route::get('driver/current-offers', [TripController::class, 'currentOffers']);
+        Route::post('navigation/route', [NavigationController::class, 'route']);
         Route::patch('trips/{trip}/status', [TripController::class, 'updateStatus']);
 
         Route::post('deliveries', [DeliveryController::class, 'store']);

@@ -14,6 +14,10 @@ return [
     |
     */
 
+    'google' => [
+        'routes_api_key' => env('GOOGLE_ROUTES_API_KEY'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
