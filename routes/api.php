@@ -2,14 +2,17 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DeliveryController;
+use App\Http\Controllers\Api\Driver\DriverStateController;
 use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\NavigationController;
 use App\Http\Controllers\Api\OtpController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PlaceController;
 use App\Http\Controllers\Api\TripController;
+use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\WalletController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Broadcasting\BroadcastController;
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:auth-login');
@@ -32,19 +35,24 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
+        Route::post('broadcasting/auth', [BroadcastController::class, 'authenticate']);
         Route::patch('auth/profile', [AuthController::class, 'updateProfile']);
         Route::patch('auth/active-role', [AuthController::class, 'updateActiveRole']);
         Route::get('auth/stats', [AuthController::class, 'stats']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
 
         Route::post('trips', [TripController::class, 'store']);
+        Route::get('trips/{trip}', [TripController::class, 'show']);
         Route::post('trips/{trip}/accept', [TripController::class, 'accept']);
         Route::post('trips/{trip}/reject', [TripController::class, 'reject']);
         Route::get('driver/current-offers', [TripController::class, 'currentOffers']);
+        Route::get('driver/current-deliveries', [DeliveryController::class, 'currentAssignments']);
+        Route::post('driver/update-location', [DriverStateController::class, 'updateLocation']);
         Route::post('navigation/route', [NavigationController::class, 'route']);
         Route::patch('trips/{trip}/status', [TripController::class, 'updateStatus']);
 
         Route::post('deliveries', [DeliveryController::class, 'store']);
+        Route::get('deliveries/{delivery}', [DeliveryController::class, 'show']);
         Route::patch('deliveries/{delivery}/status', [DeliveryController::class, 'updateStatus']);
 
         Route::get('wallet', [WalletController::class, 'show']);
@@ -56,5 +64,7 @@ Route::prefix('v1')->group(function () {
         Route::post('payments/{payment}/confirm', [PaymentController::class, 'confirm']);
 
         Route::post('market/orders', [MarketController::class, 'storeOrder']);
+        Route::post('support/requests', [SupportController::class, 'store'])
+            ->middleware('throttle:10,1');
     });
 });

@@ -5,9 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class DriverLocation extends Model
+class SupportRequest extends Model
 {
-    protected $fillable = ['user_id', 'position_id', 'location', 'heading', 'speed', 'recorded_at'];
+    protected $fillable = ['user_id', 'category', 'subject', 'message', 'status'];
 
     public function user(): BelongsTo
     {

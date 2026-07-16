@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-#[Fillable(['reference', 'user_id', 'driver_id', 'pickup_address', 'dropoff_address', 'recipient_name', 'recipient_phone', 'parcel_size', 'parcel_note', 'distance_km', 'price_fcfa', 'estimated_minutes', 'status', 'delivered_at'])]
+#[Fillable(['reference', 'user_id', 'driver_id', 'pickup_address', 'dropoff_address', 'pickup_latitude', 'pickup_longitude', 'dropoff_latitude', 'dropoff_longitude', 'recipient_name', 'recipient_phone', 'parcel_size', 'parcel_note', 'distance_km', 'price_fcfa', 'estimated_minutes', 'status', 'delivered_at'])]
 class Delivery extends Model
 {
     protected function casts(): array

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\DeliveryAssigned;
+use App\Events\DeliveryTrackingStopped;
 use App\Http\Controllers\Controller;
 use App\Models\Delivery;
 use App\Models\Driver;
@@ -38,6 +40,10 @@ class DeliveryController extends Controller
         $data = $request->validate([
             'pickup_address' => ['required', 'string'],
             'dropoff_address' => ['required', 'string'],
+            'pickup_latitude' => ['required', 'numeric', 'between:-90,90'],
+            'pickup_longitude' => ['required', 'numeric', 'between:-180,180'],
+            'dropoff_latitude' => ['required', 'numeric', 'between:-90,90'],
+            'dropoff_longitude' => ['required', 'numeric', 'between:-180,180'],
             'recipient_name' => ['required', 'string'],
             'recipient_phone' => ['required', 'string', 'regex:/^\+241\d{8}$/'],
             'parcel_size' => ['required', 'in:small,medium,large'],
@@ -47,11 +53,12 @@ class DeliveryController extends Controller
         ]);
 
         $estimate = $this->pricingService->delivery((float) $data['distance_km'], $data['parcel_size']);
+        $driverProfile = Driver::query()->where('status', 'available')->first();
 
         $delivery = Delivery::create($data + [
             'user_id' => $request->user()->id,
             'reference' => 'DLV-'.Str::upper(Str::random(8)),
-            'driver_id' => Driver::where('status', 'available')->value('id'),
+            'driver_id' => $driverProfile?->id,
             'price_fcfa' => $estimate['price_fcfa'],
             'estimated_minutes' => $estimate['estimated_minutes'],
             'status' => 'searching',
@@ -66,11 +73,36 @@ class DeliveryController extends Controller
             payable: $delivery,
         );
 
+        $driverUserId = $delivery->driver?->user_id;
+        if ($driverUserId && $payment->status === 'paid') {
+            $driverProfile?->update(['status' => 'busy']);
+            $delivery->update(['status' => 'assigned']);
+            broadcast(new DeliveryAssigned($delivery, (int) $driverUserId));
+        }
+
         return response()->json([
             'data' => $delivery->load('driver'),
             'payment' => $payment,
             'payment_reference' => $payment->reference,
         ], 201);
+    }
+
+    public function show(Request $request, Delivery $delivery): JsonResponse
+    {
+        $this->authorize('view', $delivery);
+
+        return response()->json(['data' => $delivery->load('driver')]);
+    }
+
+    public function currentAssignments(Request $request): JsonResponse
+    {
+        $deliveries = Delivery::query()
+            ->whereHas('driver', fn ($query) => $query->where('user_id', $request->user()->id))
+            ->whereIn('status', ['searching', 'assigned', 'in_progress'])
+            ->latest()
+            ->get();
+
+        return response()->json(['status' => 'success', 'data' => $deliveries]);
     }
 
     public function updateStatus(Request $request, Delivery $delivery): JsonResponse
@@ -92,6 +124,13 @@ class DeliveryController extends Controller
             );
         }
         $delivery->update(['status' => $data['status'], 'delivered_at' => $data['status'] === 'delivered' ? now() : $delivery->delivered_at]);
+        if (in_array($data['status'], ['delivered', 'cancelled'], true)) {
+            $driverUserId = $delivery->driver?->user_id;
+            $delivery->driver?->update(['status' => 'available']);
+            if ($driverUserId) {
+                broadcast(new DeliveryTrackingStopped($delivery, (int) $driverUserId));
+            }
+        }
         Log::info('delivery.status_updated', [
             'delivery_id' => $delivery->id,
             'user_id' => $request->user()->id,

@@ -41,6 +41,10 @@ class TripController extends Controller
         $data = $request->validate([
             'pickup_address' => ['required', 'string'],
             'dropoff_address' => ['required', 'string'],
+            'pickup_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'pickup_longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'dropoff_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'dropoff_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'distance_km' => ['required', 'numeric', 'min:0.1'],
             'service_type' => ['nullable', 'in:eco,premium'],
             'payment_method' => ['nullable', 'in:'.implode(',', PaymentService::METHODS)],
@@ -73,15 +77,23 @@ class TripController extends Controller
         ], 201);
     }
 
+    public function show(Request $request, Trip $trip): JsonResponse
+    {
+        $this->authorize('view', $trip);
+
+        return response()->json(['data' => $trip->load('driver')]);
+    }
+
     public function accept(Request $request, Trip $trip): JsonResponse
     {
-        $driver = $request->user();
+        $driverUser = $request->user();
+        $driverProfile = Driver::query()->where('user_id', $driverUser->id)->firstOrFail();
 
-        return DB::transaction(function () use ($driver, $trip) {
+        return DB::transaction(function () use ($driverUser, $driverProfile, $trip) {
             $lockedTrip = Trip::query()->whereKey($trip->id)->lockForUpdate()->firstOrFail();
             $dispatch = TripDispatch::query()
                 ->where('trip_id', $lockedTrip->id)
-                ->where('driver_id', $driver->id)
+                ->where('driver_id', $driverUser->id)
                 ->lockForUpdate()
                 ->first();
 
@@ -102,16 +114,16 @@ class TripController extends Controller
             }
 
             $lockedTrip->update([
-                'driver_id' => $driver->id,
+                'driver_id' => $driverProfile->id,
                 'status' => 'accepted',
                 'accepted_at' => now(),
             ]);
             $dispatch->update(['status' => 'accepted']);
-            $driver->update(['is_busy' => true]);
+            $driverUser->update(['is_busy' => true]);
 
             $otherDriverIds = TripDispatch::query()
                 ->where('trip_id', $lockedTrip->id)
-                ->where('driver_id', '!=', $driver->id)
+                ->where('driver_id', '!=', $driverUser->id)
                 ->where('status', 'sent')
                 ->lockForUpdate()
                 ->pluck('driver_id');
@@ -200,6 +212,7 @@ class TripController extends Controller
         if ($request->user()->role !== 'admin') {
             $allowedTransitions = [
                 'searching' => ['assigned', 'cancelled'],
+                'accepted' => ['in_progress', 'cancelled'],
                 'assigned' => ['in_progress', 'completed', 'cancelled'],
                 'in_progress' => ['completed', 'cancelled'],
             ];
